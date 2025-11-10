@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Báo cáo Quân số Đại đội</title>
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#800000">
+
+  <!-- libs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg,rgb(66, 221, 27),#3700ff);
+      color:#fff;
+      margin:0;
+      padding:18px;
+    }
+
+    h1 {
+      text-align:center;
+      color:#ffdcdc;
+      margin:6px 0 14px;
+    }
+
+    .card {
+      background: rgba(0,0,0,0.45);
+      padding:14px;
+      border-radius:10px;
+      box-shadow:0 6px 18px rgba(0,0,0,0.6);
+    }
+
+    table {
+      width:100%;
+      border-collapse:collapse;
+      margin-bottom:12px;
+    }
+
+    th,td {
+      padding:10px;
+      border:1px solid rgba(255,150,150,0.2);
+      text-align:center;
+    }
+
+    input[type="number"] {
+      width:90px;
+      padding:6px;
+      border-radius:6px;
+      border:none;
+      text-align:center;
+    }
+
+    input[type="text"] {
+      width:100%;
+      padding:6px;
+      border-radius:6px;
+      border:none;
+    }
+
+    .controls {
+      text-align:center;
+      margin:8px 0;
+    }
+
+    button {
+      padding:10px 16px;
+      margin:6px;
+      border-radius:8px;
+      border:none;
+      font-weight:700;
+      cursor:pointer;
+    }
+
+    .primary { background:#e60000; color:white; }
+    .green { background:#12a60a; color:white; }
+    .blue { background:#0b78d1; color:white; }
+
+    #result {
+      margin-top:12px;
+      text-align:left;
+      padding:12px;
+      border-radius:8px;
+      background:rgba(0,0,0,0.25);
+    }
+
+    /* góc dưới: design + fb + ig + phone */
+    .footer {
+      position: fixed;
+      bottom: 10px;
+      left: 15px;
+      right: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      color: #ccc;
+      z-index: 1000;
+    }
+
+    .footer-left {
+      color: #aaa;
+    }
+
+    .footer-right {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .footer a {
+      color: #00bfff;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .footer a:hover {
+      color: #66ccff;
+      text-decoration: underline;
+    }
+
+    .footer img {
+      width: 20px;
+      height: 20px;
+      filter: brightness(1.2);
+    }
+
+    @media(max-width:720px){
+      input[type="number"]{ width:64px }
+      table, th, td{ font-size:13px }
+    }
+  </style>
+</head>
+<body>
+  <h1>🪖 Báo cáo Quân số Đại đội</h1>
+
+  <div class="card">
+    <table id="table">
+      <thead>
+        <tr>
+          <th>Lớp</th>
+          <th>Quân số quy định</th>
+          <th>Quân số thực tế</th>
+          <th>Số vắng</th>
+          <th>Lý do vắng</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <div class="controls">
+      <button id="calcBtn" class="primary">Tính tổng hợp</button>
+      <button id="excelBtn" class="green">Xuất Excel</button>
+      <button id="pdfBtn" class="blue">Xuất PDF</button>
+      <button id="clearBtn">Xóa dữ liệu</button>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+  <!-- footer -->
+  <div class="footer">
+    <div class="footer-left">Design by <b>Sơn Cris</b></div>
+    <div class="footer-right">
+      <a href="https://web.facebook.com/sonsadboiz.12" target="_blank" title="Facebook">
+        <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook">
+        Facebook
+      </a>
+      <a href="https://www.instagram.com/son_cris3012/" target="_blank" title="Instagram">
+        <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram">
+        Instagram
+      </a>
+      <a href="tel:0327208690" title="Gọi 0327208690">
+        <img src="https://cdn-icons-png.flaticon.com/512/724/724664.png" alt="Phone">
+        0327208690
+      </a>
+    </div>
+  </div>
+
+  <script>
+/* ========== cấu hình lớp mặc định ========== */
+const defaultClasses = [
+  { id: 'CNTT1', qd: 24 },
+  { id: 'CNTT2', qd: 24 },
+  { id: 'TTNT', qd: 15 },
+  { id: 'BDATTT', qd: 8 },
+  { id: 'TBBKNL', qd: 10 },
+  { id: 'TL', qd: 8 }
+];
+
+const STORAGE_KEY = 'quanso_data_v1';
+
+/* --- load dữ liệu --- */
+function loadData(){
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if(saved){
+    try { return JSON.parse(saved); } catch(e) { localStorage.removeItem(STORAGE_KEY); }
+  }
+  const init = {};
+  defaultClasses.forEach(c => { init[c.id] = { qd: c.qd, tt: '', lydo: '' } });
+  return init;
+}
+
+let data = loadData();
+
+function renderTable(){
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  for(const id in data){
+    const row = data[id];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${id}</td>
+      <td>${row.qd}</td>
+      <td><input type="number" data-id="${id}" class="tt" value="${row.tt ?? ''}" min="0"></td>
+      <td id="${id}_vang">${(row.qd - (Number(row.tt)||0))>0 ? row.qd - (Number(row.tt)||0) : 0}</td>
+      <td><input type="text" data-id="${id}" class="lydo" value="${row.lydo ?? ''}" placeholder=""></td>
+    `;
+    tbody.appendChild(tr);
+  }
+  attachListeners();
+}
+renderTable();
+
+/* --- lưu localStorage --- */
+function saveData(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+/* --- tính tổng và thống kê lý do --- */
+function tinhTongHop(){
+  let tongQD=0, tongTT=0, tongVang=0;
+  const statLyDo = {};
+
+  for(const id in data){
+    const qd = Number(data[id].qd) || 0;
+    const tt = Number(data[id].tt) || 0;
+    const vang = Math.max(0, qd - tt);
+
+    tongQD += qd;
+    tongTT += tt;
+    tongVang += vang;
+
+    const s = (data[id].lydo || '').trim();
+    if(s){
+      s.split(',').map(p=>p.trim()).forEach(part=>{
+        const m = part.match(/^(\d+)\s*(.+)$/);
+        if(m){
+          const so = parseInt(m[1],10);
+          const ten = m[2].trim();
+          if(ten) statLyDo[ten] = (statLyDo[ten]||0) + so;
+        }
+      });
+    }
+    const el = document.getElementById(id + '_vang');
+    if(el) el.textContent = vang;
+  }
+
+  let html = `<p><b>Tổng quân số quy định:</b> ${tongQD}</p>
+              <p><b>Tổng quân số thực tế:</b> ${tongTT}</p>
+              <p><b>Tổng số vắng:</b> ${tongVang}</p>
+              <p><b>Thống kê lý do vắng:</b></p>`;
+  if(Object.keys(statLyDo).length){
+    html += '<ul>';
+    for(const name in statLyDo) html += `<li>${name}: ${statLyDo[name]}</li>`;
+    html += '</ul>';
+  } else html += '<p>— Không có lý do được nhập —</p>';
+
+  document.getElementById('result').innerHTML = html;
+}
+
+/* --- sự kiện input --- */
+function attachListeners(){
+  const inputs = [...document.querySelectorAll('input.tt, input.lydo')];
+  inputs.forEach((inp,i) => {
+    inp.addEventListener('input', e=>{
+      const id = e.target.dataset.id;
+      if(!id) return;
+      if(e.target.classList.contains('tt')) data[id].tt = e.target.value;
+      if(e.target.classList.contains('lydo')) data[id].lydo = e.target.value;
+      saveData();
+      const qd = Number(data[id].qd)||0, tt = Number(data[id].tt)||0;
+      const vang = Math.max(0, qd - tt);
+      const el = document.getElementById(id + '_vang');
+      if(el) el.textContent = vang;
+    });
+
+    inp.addEventListener('keydown', e=>{
+      if(e.key === 'Enter'){
+        e.preventDefault();
+        const next = inputs[i+1] || inputs[0];
+        next.focus();
+        next.select && next.select();
+      }
+    });
+  });
+}
+
+/* --- các nút --- */
+document.getElementById('calcBtn').addEventListener('click', tinhTongHop);
+
+document.getElementById('excelBtn').addEventListener('click', ()=>{
+  const aoa = [['Lớp','QĐ','TT','Vắng','Lý do']];
+  for(const id in data){
+    const qd = data[id].qd;
+    const tt = data[id].tt || 0;
+    const vang = Math.max(0, qd - (Number(tt)||0));
+    aoa.push([id, qd, tt, vang, data[id].lydo || '']);
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'BaoCao');
+  XLSX.writeFile(wb, 'BaoCao_QuanSo.xlsx');
+});
+
+document.getElementById('pdfBtn').addEventListener('click', ()=>{
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14);
+  doc.text('Báo cáo Quân số Đại đội', 14, 16);
+  const rows = Object.keys(data).map(id => {
+    const qd = data[id].qd;
+    const tt = data[id].tt || 0;
+    const vang = Math.max(0, qd - (Number(tt)||0));
+    return [id, String(qd), String(tt), String(vang), data[id].lydo || ''];
+  });
+  doc.autoTable({ startY: 22, head: [['Lớp','QĐ','TT','Vắng','Lý do']], body: rows });
+  doc.save('BaoCao_QuanSo.pdf');
+});
+
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  if(!confirm('Xóa toàn bộ dữ liệu đã lưu?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  data = loadData();
+  renderTable();
+  document.getElementById('result').innerHTML = '';
+});
+
+/* --- PWA --- */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+  </script>
+</body>
+</html>
